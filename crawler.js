@@ -14,12 +14,21 @@ async function run() {
 
   console.log("开始执行...");
 
+  // 🔥 清空旧数据（保留表头）
+  const rows = await sheet.getRows();
+  for (let row of rows) {
+    await row.delete();
+  }
+
+  console.log("旧数据已清空");
+
+  // 获取 ENS 数据
   const response = await axios.post(
     "https://api.thegraph.com/subgraphs/name/ensdomains/ens",
     {
       query: `
       {
-        registrations(first: 20, orderBy: registrationDate, orderDirection: desc) {
+        registrations(first: 50, orderBy: registrationDate, orderDirection: desc) {
           domain {
             name
           }
@@ -34,9 +43,9 @@ async function run() {
   for (const item of list) {
     const domain = item.domain.name;
 
+    // 过滤垃圾
     if (domain.startsWith("[0")) continue;
 
-    // ✅ 修复 URL
     const cleanName = domain.replace(".eth", "");
     const url = `https://${cleanName}.eth.limo`;
 
@@ -48,10 +57,14 @@ async function run() {
 
       status = res.status;
 
+      // ❗只保留有效网站
+      if (status !== 200) continue;
+
       const $ = cheerio.load(res.data);
       title = $("title").text();
+
     } catch (e) {
-      status = "down";
+      continue;
     }
 
     await sheet.addRow({
@@ -63,10 +76,10 @@ async function run() {
       clicks: 0
     });
 
-    console.log(domain, status);
+    console.log("有效网站:", domain);
   }
 
-  console.log("✅ 完成");
+  console.log("✅ 完成（仅保留有效网站）");
 }
 
 run();
