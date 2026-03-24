@@ -6,7 +6,6 @@ const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 async function run() {
   const doc = new GoogleSpreadsheet("169QtA4-cGaJeegfyvNGsHzbimLZXRyiCwuMmm7Wyfmo");
 
-  // 登录 Google
   await doc.useServiceAccountAuth(creds);
   await doc.loadInfo();
 
@@ -14,7 +13,6 @@ async function run() {
 
   console.log("开始抓取 ENS 数据...");
 
-  // 请求 ENS 数据（The Graph）
   const res = await fetch("https://api.thegraph.com/subgraphs/name/ensdomains/ens", {
     method: "POST",
     headers: {
@@ -41,13 +39,12 @@ async function run() {
   for (const item of list) {
     const domain = item.domain.name;
 
-    // 🔥 过滤垃圾 ENS（全0或合约生成的）
-    if (/^\[0+\]/.test(domain)) {
+    // 🔥 正确过滤垃圾 ENS
+    if (domain.startsWith("[0")) {
       console.log("跳过垃圾:", domain);
       continue;
     }
 
-    // 写入 Google Sheet
     await sheet.addRow({
       domain: domain,
       last_check: new Date().toISOString()
