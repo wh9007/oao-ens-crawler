@@ -1,6 +1,8 @@
 const { GoogleSpreadsheet } = require("google-spreadsheet");
+const axios = require("axios");
+const cheerio = require("cheerio");
 
-// 读取 GitHub Secret
+// 读取凭证
 const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 
 async function run() {
@@ -11,7 +13,7 @@ async function run() {
 
   const sheet = doc.sheetsByIndex[0];
 
-  console.log("开始抓取 ENS 数据...");
+  console.log("开始抓 ENS + 网站检测...");
 
   const res = await fetch("https://api.thegraph.com/subgraphs/name/ensdomains/ens", {
     method: "POST",
@@ -34,23 +36,39 @@ async function run() {
   const json = await res.json();
   const list = json.data.registrations;
 
-  console.log("获取数量:", list.length);
-
   for (const item of list) {
     const domain = item.domain.name;
 
-    // 🔥 正确过滤垃圾 ENS
-    if (domain.startsWith("[0")) {
-      console.log("跳过垃圾:", domain);
-      continue;
+    // 过滤垃圾
+    if (domain.startsWith("[0")) continue;
+
+    const url = `https://${domain}.eth.limo`;
+
+    let status = "down";
+    let title = "";
+
+    try {
+      const res = await axios.get(url, { timeout: 5000 });
+
+      status = res.status;
+
+      const $ = cheerio.load(res.data);
+      title = $("title").text();
+
+    } catch (err) {
+      status = "down";
     }
 
     await sheet.addRow({
-      domain: domain,
-      last_check: new Date().toISOString()
+      domain,
+      url,
+      title,
+      status,
+      last_check: new Date().toISOString(),
+      clicks: 0
     });
 
-    console.log("写入:", domain);
+    console.log(domain, status);
   }
 
   console.log("✅ 完成");
