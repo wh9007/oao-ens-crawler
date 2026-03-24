@@ -2,7 +2,6 @@ const { GoogleSpreadsheet } = require("google-spreadsheet");
 const axios = require("axios");
 const cheerio = require("cheerio");
 
-// 读取凭证
 const creds = JSON.parse(process.env.GOOGLE_CREDENTIALS);
 
 async function run() {
@@ -13,14 +12,11 @@ async function run() {
 
   const sheet = doc.sheetsByIndex[0];
 
-  console.log("开始抓 ENS + 网站检测...");
+  console.log("开始执行...");
 
-  const res = await fetch("https://api.thegraph.com/subgraphs/name/ensdomains/ens", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({
+  const response = await axios.post(
+    "https://api.thegraph.com/subgraphs/name/ensdomains/ens",
+    {
       query: `
       {
         registrations(first: 20, orderBy: registrationDate, orderDirection: desc) {
@@ -30,19 +26,19 @@ async function run() {
         }
       }
       `
-    })
-  });
+    }
+  );
 
-  const json = await res.json();
-  const list = json.data.registrations;
+  const list = response.data.data.registrations;
 
   for (const item of list) {
     const domain = item.domain.name;
 
-    // 过滤垃圾
     if (domain.startsWith("[0")) continue;
 
-    const url = `https://${domain}.eth.limo`;
+    // ✅ 修复 URL
+    const cleanName = domain.replace(".eth", "");
+    const url = `https://${cleanName}.eth.limo`;
 
     let status = "down";
     let title = "";
@@ -54,8 +50,7 @@ async function run() {
 
       const $ = cheerio.load(res.data);
       title = $("title").text();
-
-    } catch (err) {
+    } catch (e) {
       status = "down";
     }
 
