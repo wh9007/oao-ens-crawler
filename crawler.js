@@ -10,41 +10,24 @@ async function run() {
   await doc.useServiceAccountAuth(creds);
   await doc.loadInfo();
 
-  const sheet = doc.sheetsByIndex[0];
+  const seedSheet = doc.sheetsByTitle["seed"];
+  const mainSheet = doc.sheetsByIndex[0];
 
-  console.log("开始执行...");
+  console.log("开始执行种子ENS检测...");
 
-  // 🔥 清空旧数据（保留表头）
-  const rows = await sheet.getRows();
+  // 🔥 清空主表
+  const rows = await mainSheet.getRows();
   for (let row of rows) {
     await row.delete();
   }
 
-  console.log("旧数据已清空");
+  // 读取 seed
+  const seeds = await seedSheet.getRows();
 
-  // 获取 ENS 数据
-  const response = await axios.post(
-    "https://api.thegraph.com/subgraphs/name/ensdomains/ens",
-    {
-      query: `
-      {
-        registrations(first: 50, orderBy: registrationDate, orderDirection: desc) {
-          domain {
-            name
-          }
-        }
-      }
-      `
-    }
-  );
+  for (const item of seeds) {
+    const domain = item.domain;
 
-  const list = response.data.data.registrations;
-
-  for (const item of list) {
-    const domain = item.domain.name;
-
-    // 过滤垃圾
-    if (domain.startsWith("[0")) continue;
+    if (!domain) continue;
 
     const cleanName = domain.replace(".eth", "");
     const url = `https://${cleanName}.eth.limo`;
@@ -57,7 +40,6 @@ async function run() {
 
       status = res.status;
 
-      // ❗只保留有效网站
       if (status !== 200) continue;
 
       const $ = cheerio.load(res.data);
@@ -67,7 +49,7 @@ async function run() {
       continue;
     }
 
-    await sheet.addRow({
+    await mainSheet.addRow({
       domain,
       url,
       title,
@@ -79,7 +61,7 @@ async function run() {
     console.log("有效网站:", domain);
   }
 
-  console.log("✅ 完成（仅保留有效网站）");
+  console.log("✅ 完成（种子筛选）");
 }
 
 run();
